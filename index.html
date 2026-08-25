@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Samuel's Super planner</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📅</text></svg>">
+<style>
+  :root {
+    --bg: #fafafa;
+    --panel: #ffffff;
+    --border: #d9d9d9;
+    --border-soft: #ececec;
+    --text: #3a3a3a;
+    --text-soft: #8a8a8a;
+    --accent: #3a3a3a;
+    --cell-hover: #f2f2f2;
+    --sel: rgba(58, 58, 58, .18);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* ---------- Zijbalk ---------- */
+  #sidebar {
+    width: 240px;
+    min-width: 240px;
+    background: var(--panel);
+    border-right: 1px solid var(--border-soft);
+    display: flex;
+    flex-direction: column;
+    transition: margin-left .22s ease;
+  }
+  #sidebar.closed { margin-left: -240px; }
+  #sidebar header {
+    padding: 18px 16px 10px;
+    font-size: 13px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--text-soft);
+  }
+  #planningList { flex: 1; overflow-y: auto; padding: 4px 8px; }
+  .plan-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--text);
+    user-select: none;
+  }
+  .plan-item:hover { background: #f5f5f5; }
+  .plan-item.active { background: #efefef; font-weight: 600; }
+  .plan-item .plan-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .plan-item .del-btn {
+    border: none; background: none; cursor: pointer;
+    color: #c0c0c0; font-size: 14px; padding: 2px 4px; border-radius: 4px;
+    visibility: hidden;
+  }
+  .plan-item:hover .del-btn { visibility: visible; }
+  .plan-item .del-btn:hover { color: #d05050; background: #fbeaea; }
+  .plan-item input {
+    flex: 1; font-size: 14px; padding: 2px 4px;
+    border: 1px solid var(--border); border-radius: 4px; outline: none;
+  }
+  #newPlanBtn {
+    margin: 8px 16px 10px;
+    padding: 9px;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    background: none;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-soft);
+  }
+  #newPlanBtn:hover { border-color: var(--text-soft); color: var(--text); }
+  #sidebarFooter {
+    border-top: 1px solid var(--border-soft);
+    padding: 10px 16px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  #sidebarFooter .hint { font-size: 11px; color: #b5b5b5; }
+  #sidebarFooter .io-row { display: flex; gap: 8px; }
+  #sidebarFooter .io-row button {
+    flex: 1; padding: 6px; font-size: 12px; cursor: pointer;
+    border: 1px solid var(--border-soft); border-radius: 6px;
+    background: none; color: var(--text-soft);
+  }
+  #sidebarFooter .io-row button:hover { color: var(--text); border-color: var(--border); }
+
+  /* ---------- Hoofdgedeelte ---------- */
+  #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  #topbar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 22px 10px;
+  }
+  #toggleSidebar {
+    border: 1px solid var(--border-soft);
+    background: var(--panel);
+    border-radius: 8px;
+    width: 34px; height: 34px;
+    font-size: 16px;
+    cursor: pointer;
+    color: var(--text-soft);
+  }
+  #toggleSidebar:hover { color: var(--text); border-color: var(--border); }
+  #planTitle {
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    cursor: text;
+  }
+  #planTitle:hover { opacity: .75; }
+
+  /* ---------- Legenda / activiteiten ---------- */
+  #legend {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 4px 22px 12px;
+  }
+  #legend form { display: flex; gap: 6px; align-items: center; position: relative; }
+  #activityName {
+    width: 150px;
+    padding: 8px 10px;
+    font-size: 13px;
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+    outline: none;
+    background: var(--panel);
+  }
+  #activityName:focus { border-color: var(--border); }
+  #colorBtn {
+    width: 34px; height: 34px;
+    border-radius: 8px;
+    border: 1px solid var(--border-soft);
+    cursor: pointer;
+  }
+  #addActivity {
+    padding: 8px 14px;
+    font-size: 13px;
+    border: none;
+    border-radius: 8px;
+    background: var(--accent);
+    color: #fff;
+    cursor: pointer;
+  }
+  #addActivity:hover { opacity: .85; }
+  #palette {
+    position: absolute;
+    top: 42px; left: 0;
+    z-index: 30;
+    background: var(--panel);
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0,0,0,.12);
+    padding: 12px;
+    display: none;
+    grid-template-columns: repeat(9, 26px);
+    gap: 7px;
+  }
+  #palette.open { display: grid; }
+  .swatch {
+    width: 26px; height: 26px;
+    border-radius: 7px;
+    cursor: pointer;
+    border: 2px solid transparent;
+  }
+  .swatch:hover { transform: scale(1.12); }
+  .swatch.selected { border-color: var(--text); }
+  #customColor {
+    grid-column: span 9;
+    width: 100%; height: 30px;
+    border: 1px solid var(--border-soft);
+    border-radius: 7px;
+    cursor: pointer;
+    background: none;
+    padding: 2px;
+  }
+  .chip {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 10px;
+    border: 1px solid var(--border-soft);
+    border-radius: 999px;
+    background: var(--panel);
+    cursor: pointer;
+    font-size: 13px;
+    user-select: none;
+  }
+  .chip:hover { border-color: var(--border); }
+  .chip.active { border-color: var(--text); box-shadow: 0 0 0 1px var(--text); }
+  .chip .dot { width: 14px; height: 14px; border-radius: 50%; }
+  .chip .hours { color: var(--text-soft); font-size: 12px; }
+  .chip .x {
+    border: none; background: none; cursor: pointer;
+    color: #c0c0c0; font-size: 13px; line-height: 1; padding: 0 0 0 2px;
+  }
+  .chip .x:hover { color: #d05050; }
+  .chip .x.armed, .plan-item .del-btn.armed {
+    color: #d05050;
+    font-weight: 700;
+    font-size: 11px;
+    visibility: visible;
+  }
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #3a3a3a;
+    color: #fff;
+    padding: 10px 18px;
+    border-radius: 10px;
+    font-size: 13px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .25s;
+    z-index: 99;
+    max-width: 90vw;
+    text-align: center;
+  }
+  #toast.show { opacity: 1; }
+  #sidebarFooter .io-row button.danger { color: #d05050; border-color: #e8b4b4; }
+  .title-input {
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    font-family: inherit;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0 6px;
+    outline: none;
+    color: var(--text);
+    background: var(--panel);
+  }
+  .chip.eraser .dot {
+    background: repeating-linear-gradient(45deg, #eee 0 4px, #fff 4px 8px);
+    border: 1px solid var(--border);
+  }
+
+  /* ---------- Weekrooster ---------- */
+  #gridWrap {
+    flex: 1;
+    overflow: auto;
+    padding: 0 22px 22px;
+  }
+  #grid {
+    display: grid;
+    grid-template-columns: 56px repeat(7, minmax(90px, 1fr));
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    user-select: none;
+    min-width: 760px;
+  }
+  .day-head {
+    padding: 12px 4px;
+    text-align: center;
+    font-size: 12px;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    color: var(--text);
+    background: #f6f6f6;
+    border-bottom: 1px solid var(--border);
+    border-left: 1px solid var(--border-soft);
+  }
+  .corner { background: #f6f6f6; border-bottom: 1px solid var(--border); }
+  .hour-label {
+    font-size: 11px;
+    color: var(--text-soft);
+    text-align: right;
+    padding: 4px 8px 0 0;
+    border-top: 1px solid var(--border-soft);
+    background: #fcfcfc;
+  }
+  .cell {
+    height: 32px;
+    border-top: 1px solid var(--border-soft);
+    border-left: 1px solid var(--border-soft);
+    cursor: cell;
+    position: relative;
+    font-size: 12px;
+    line-height: 32px;
+    padding: 0 3px;
+    text-align: center;
+    overflow: hidden;
+    white-space: nowrap;
+    font-weight: 700;
+  }
+  .cell:not(.filled):hover { background: var(--cell-hover); }
+  .cell.preview::after {
+    content: "";
+    position: absolute; inset: 0;
+    background: var(--sel);
+    pointer-events: none;
+  }
+  #emptyState {
+    padding: 60px 20px;
+    text-align: center;
+    color: var(--text-soft);
+    font-size: 14px;
+  }
+
+  /* ---------- Bijbeltekst van de dag ---------- */
+  #verse {
+    margin: 16px 2px 0;
+    max-width: 540px;
+    padding-left: 14px;
+    border-left: 2px solid var(--border);
+  }
+  #verseText {
+    font-style: italic;
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: var(--text-soft);
+  }
+  #verseRef {
+    display: inline-block;
+    margin-top: 5px;
+    font-size: 10.5px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: #b5b5b5;
+    text-decoration: none;
+  }
+  #verseRef:hover { color: var(--text); text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<aside id="sidebar">
+  <header>Samuel's Super planner</header>
+  <div id="planningList"></div>
+  <button id="newPlanBtn">+ Nieuwe planning</button>
+  <div id="sidebarFooter">
+    <div class="hint">Dubbelklik op een naam om te hernoemen</div>
+    <div class="io-row">
+      <button id="exportBtn">Exporteren</button>
+      <button id="importBtn">Importeren</button>
+    </div>
+    <input type="file" id="importFile" accept="application/json" hidden>
+  </div>
+</aside>
+
+<div id="main">
+  <div id="topbar">
+    <button id="toggleSidebar" title="Zijbalk tonen/verbergen">☰</button>
+    <div id="planTitle" title="Dubbelklik om te hernoemen"></div>
+  </div>
+
+  <div id="legend">
+    <form id="activityForm" autocomplete="off">
+      <input id="activityName" placeholder="Nieuwe activiteit…" maxlength="40">
+      <button type="button" id="colorBtn" title="Kies een kleur"></button>
+      <button type="submit" id="addActivity">Voeg toe</button>
+      <div id="palette"></div>
+    </form>
+    <div id="chips" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+  </div>
+
+  <div id="gridWrap">
+  <div id="grid"></div>
+  <div id="verse">
+    <div id="verseText"></div>
+    <a id="verseRef" href="https://www.bible.com/nl/verse-of-the-day" target="_blank" rel="noopener" title="Bekijk de officiële tekst van de dag op bible.com"></a>
+  </div>
+</div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+
+/* ================= Constanten ================= */
+const STORAGE_KEY = 'weekplanner.v1';
+const DAYS = ['Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrijdag', 'Zaterdag', 'Zondag'];
+// Uren in weergavevolgorde: 06:00 t/m 23:00, daarna de nacht (00:00 en 01:00)
+const HOURS = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 0, 1];
+const ERASER = '__eraser__';
+const PALETTE = [
+  '#ef4444', '#f97316', '#f59e0b', '#eab308', '#facc15', '#fde047', '#bef264', '#84cc16', '#22c55e',
+  '#10b981', '#14b8a6', '#5eead4', '#06b6d4', '#0ea5e9', '#7dd3fc', '#3b82f6', '#6366f1', '#a5b4fc',
+  '#8b5cf6', '#a855f7', '#c4b5fd', '#d946ef', '#f0abfc', '#ec4899', '#f43f5e', '#fb7185', '#fda4af',
+  '#fdba74', '#fcd34d', '#86efac', '#94a3b8', '#64748b', '#78716c', '#a8a29e', '#d6d3d1', '#374151'
+];
+
+/* ================= State (immutable updates) ================= */
+
+function createPlanning(name) {
+  return {
+    id: 'p' + Date.now() + Math.floor(Math.random() * 1e4),
+    name,
+    activities: [],   // [{id, name, color}]
+    cells: {}         // {"day-hour": activityId}
+  };
+}
+
+function defaultState() {
+  const first = createPlanning('Mijn week');
+  return { plannings: [first], currentId: first.id, sidebarOpen: true };
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return defaultState();
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed.plannings) || parsed.plannings.length === 0) return defaultState();
+    return parsed;
+  } catch (err) {
+    console.error('Kon opgeslagen data niet lezen:', err);
+    return defaultState();
+  }
+}
+
+let state = loadState();
+let saveWarned = false;
+
+function setState(next) {
+  state = next;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (err) {
+    console.error('Opslaan mislukt:', err);
+    if (!saveWarned) {
+      saveWarned = true;
+      toast('Opslaan is mislukt — de browseropslag is mogelijk vol of geblokkeerd.');
+    }
+  }
+  render();
+}
+
+function currentPlanning() {
+  return state.plannings.find(p => p.id === state.currentId) || state.plannings[0];
+}
+
+function updateCurrentPlanning(updater) {
+  const plannings = state.plannings.map(p => p.id === currentPlanning().id ? updater(p) : p);
+  setState({ ...state, plannings });
+}
+
+/* ================= UI-state (niet persistent) ================= */
+let selectedColor = PALETTE[0];
+let activeActivityId = null;   // geselecteerde "kwast" (of ERASER)
+let drag = null;               // {startDay, startRow, endDay, endRow, erase}
+
+/* Kleine melding onderin beeld (vervangt alert(), dat online geblokkeerd wordt) */
+let toastTimer = null;
+function toast(message) {
+  const t = el('toast');
+  t.textContent = message;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+/* Verwijderen in 2 klikken (vervangt confirm(), dat online geblokkeerd wordt) */
+let pendingDelete = null; // {type: 'activity'|'planning', id}
+let pendingTimer = null;
+
+function isArmed(type, id) {
+  return pendingDelete !== null && pendingDelete.type === type && pendingDelete.id === id;
+}
+
+function armDelete(type, id) {
+  pendingDelete = { type, id };
+  clearTimeout(pendingTimer);
+  pendingTimer = setTimeout(() => { pendingDelete = null; render(); }, 3500);
+  render();
+}
+
+function disarmDelete() {
+  pendingDelete = null;
+  clearTimeout(pendingTimer);
+}
+
+/* ================= Helpers ================= */
+
+function textColorFor(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return lum > 0.62 ? '#2b2b2b' : '#ffffff';
+}
+
+function hoursFor(planning, activityId) {
+  return Object.values(planning.cells).filter(id => id === activityId).length;
+}
+
+function nextFreeColor(planning) {
+  const used = new Set(planning.activities.map(a => a.color));
+  return PALETTE.find(c => !used.has(c)) || PALETTE[planning.activities.length % PALETTE.length];
+}
+
+/* ================= Renderen ================= */
+
+const el = id => document.getElementById(id);
+
+function render() {
+  renderSidebar();
+  renderLegend();
+  renderGrid();
+  el('sidebar').classList.toggle('closed', !state.sidebarOpen);
+  el('planTitle').textContent = currentPlanning().name;
+  el('colorBtn').style.background = selectedColor;
+}
+
+function renderSidebar() {
+  const list = el('planningList');
+  list.innerHTML = '';
+  state.plannings.forEach(p => {
+    const item = document.createElement('div');
+    item.className = 'plan-item' + (p.id === state.currentId ? ' active' : '');
+
+    const name = document.createElement('span');
+    name.className = 'plan-name';
+    name.textContent = p.name;
+    item.appendChild(name);
+
+    const del = document.createElement('button');
+    const armed = isArmed('planning', p.id);
+    del.className = 'del-btn' + (armed ? ' armed' : '');
+    del.textContent = armed ? 'Zeker?' : '✕';
+    del.title = armed ? 'Klik nogmaals om definitief te verwijderen' : 'Verwijder planning';
+    del.addEventListener('click', e => {
+      e.stopPropagation();
+      if (isArmed('planning', p.id)) {
+        disarmDelete();
+        deletePlanning(p.id);
+      } else {
+        armDelete('planning', p.id);
+      }
+    });
+    item.appendChild(del);
+
+    item.addEventListener('click', () => {
+      if (p.id !== state.currentId) {
+        activeActivityId = null;
+        setState({ ...state, currentId: p.id });
+      }
+    });
+    item.addEventListener('dblclick', () => startRename(item, name, p));
+    list.appendChild(item);
+  });
+}
+
+function startRename(item, nameEl, planning) {
+  const input = document.createElement('input');
+  input.value = planning.name;
+  item.replaceChild(input, nameEl);
+  input.focus();
+  input.select();
+  const commit = () => {
+    const value = input.value.trim();
+    const plannings = state.plannings.map(p =>
+      p.id === planning.id ? { ...p, name: value || planning.name } : p);
+    setState({ ...state, plannings });
+  };
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') input.blur();
+    if (e.key === 'Escape') { input.value = planning.name; input.blur(); }
+  });
+}
+
+function deletePlanning(id) {
+  const planning = state.plannings.find(p => p.id === id);
+  if (!planning) return;
+  const rest = state.plannings.filter(p => p.id !== id);
+  const plannings = rest.length > 0 ? rest : [createPlanning('Mijn week')];
+  const currentId = plannings.some(p => p.id === state.currentId) ? state.currentId : plannings[0].id;
+  activeActivityId = null;
+  setState({ ...state, plannings, currentId });
+}
+
+function renderLegend() {
+  const wrap = el('chips');
+  wrap.innerHTML = '';
+  const planning = currentPlanning();
+
+  // Gum
+  const eraser = document.createElement('div');
+  eraser.className = 'chip eraser' + (activeActivityId === ERASER ? ' active' : '');
+  eraser.innerHTML = '<span class="dot"></span><span>Gum</span>';
+  eraser.title = 'Sleep over vakken om ze leeg te maken (of gebruik de rechtermuisknop)';
+  eraser.addEventListener('click', () => {
+    activeActivityId = activeActivityId === ERASER ? null : ERASER;
+    render();
+  });
+  wrap.appendChild(eraser);
+
+  planning.activities.forEach(activity => {
+    const chip = document.createElement('div');
+    chip.className = 'chip' + (activity.id === activeActivityId ? ' active' : '');
+
+    const dot = document.createElement('span');
+    dot.className = 'dot';
+    dot.style.background = activity.color;
+    dot.title = 'Klik om de kleur te wijzigen';
+    dot.addEventListener('click', e => {
+      e.stopPropagation();
+      openPaletteForActivity(activity.id);
+    });
+    chip.appendChild(dot);
+
+    const name = document.createElement('span');
+    name.textContent = activity.name;
+    chip.appendChild(name);
+
+    const hours = document.createElement('span');
+    hours.className = 'hours';
+    const n = hoursFor(planning, activity.id);
+    hours.textContent = n > 0 ? n + 'u' : '';
+    chip.appendChild(hours);
+
+    const x = document.createElement('button');
+    const armed = isArmed('activity', activity.id);
+    x.className = 'x' + (armed ? ' armed' : '');
+    x.textContent = armed ? 'Zeker?' : '✕';
+    x.title = armed ? 'Klik nogmaals om definitief te verwijderen' : 'Verwijder activiteit';
+    x.addEventListener('click', e => {
+      e.stopPropagation();
+      if (isArmed('activity', activity.id)) {
+        disarmDelete();
+        deleteActivity(activity.id);
+      } else {
+        armDelete('activity', activity.id);
+      }
+    });
+    chip.appendChild(x);
+
+    chip.addEventListener('click', () => {
+      activeActivityId = activeActivityId === activity.id ? null : activity.id;
+      render();
+    });
+    wrap.appendChild(chip);
+  });
+}
+
+function deleteActivity(id) {
+  const planning = currentPlanning();
+  const activity = planning.activities.find(a => a.id === id);
+  if (!activity) return;
+  if (activeActivityId === id) activeActivityId = null;
+  const n = hoursFor(planning, id);
+  if (n > 0) toast(`"${activity.name}" verwijderd — ${n} ingeplande uren leeggemaakt.`);
+  updateCurrentPlanning(p => ({
+    ...p,
+    activities: p.activities.filter(a => a.id !== id),
+    cells: Object.fromEntries(Object.entries(p.cells).filter(([, v]) => v !== id))
+  }));
+}
+
+/* ---------- Kleurenpalet ---------- */
+let paletteEditActivityId = null; // null = kleur kiezen voor nieuwe activiteit
+
+function buildPalette() {
+  const pal = el('palette');
+  pal.innerHTML = '';
+  PALETTE.forEach(color => {
+    const sw = document.createElement('div');
+    sw.className = 'swatch' + (color === selectedColor ? ' selected' : '');
+    sw.style.background = color;
+    sw.addEventListener('click', () => pickColor(color));
+    pal.appendChild(sw);
+  });
+  const custom = document.createElement('input');
+  custom.type = 'color';
+  custom.id = 'customColor';
+  custom.title = 'Eigen kleur kiezen';
+  custom.value = selectedColor;
+  custom.addEventListener('change', () => pickColor(custom.value));
+  pal.appendChild(custom);
+}
+
+function pickColor(color) {
+  if (paletteEditActivityId) {
+    const editId = paletteEditActivityId;
+    paletteEditActivityId = null;
+    el('palette').classList.remove('open');
+    updateCurrentPlanning(p => ({
+      ...p,
+      activities: p.activities.map(a => a.id === editId ? { ...a, color } : a)
+    }));
+    return;
+  }
+  selectedColor = color;
+  el('palette').classList.remove('open');
+  buildPalette();
+  render();
+}
+
+function openPaletteForActivity(activityId) {
+  paletteEditActivityId = activityId;
+  buildPalette();
+  el('palette').classList.add('open');
+}
+
+/* ---------- Weekrooster ---------- */
+
+function renderGrid() {
+  const grid = el('grid');
+  grid.innerHTML = '';
+  const planning = currentPlanning();
+
+  const corner = document.createElement('div');
+  corner.className = 'corner';
+  grid.appendChild(corner);
+  DAYS.forEach(day => {
+    const head = document.createElement('div');
+    head.className = 'day-head';
+    head.textContent = day;
+    grid.appendChild(head);
+  });
+
+  HOURS.forEach((hour, row) => {
+    const label = document.createElement('div');
+    label.className = 'hour-label';
+    label.textContent = String(hour).padStart(2, '0') + ':00';
+    grid.appendChild(label);
+
+    for (let day = 0; day < DAYS.length; day++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.day = day;
+      cell.dataset.hour = hour;
+      cell.dataset.row = row;
+
+      const activityId = planning.cells[day + '-' + hour];
+      if (activityId) {
+        const activity = planning.activities.find(a => a.id === activityId);
+        if (activity) {
+          cell.classList.add('filled');
+          cell.style.background = activity.color;
+          cell.style.color = textColorFor(activity.color);
+          const above = row > 0 ? planning.cells[day + '-' + HOURS[row - 1]] : undefined;
+          if (above !== activityId || row === 0) cell.textContent = activity.name;
+        }
+      }
+      grid.appendChild(cell);
+    }
+  });
+  fitCellLabels();
+}
+
+/* Schaal de tekst zodat die het blokje vult, altijd op één regel (zoals in Excel) */
+const measureCanvas = document.createElement('canvas');
+const LABEL_BASE = 12, LABEL_MIN = 7, LABEL_MAX = 20;
+
+function fitCellLabels() {
+  const ctx = measureCanvas.getContext('2d');
+  const grid = el('grid');
+  ctx.font = '700 ' + LABEL_BASE + 'px ' + getComputedStyle(grid).fontFamily;
+  grid.querySelectorAll('.cell.filled').forEach(cell => {
+    const text = cell.textContent;
+    if (!text) return;
+    const avail = cell.clientWidth - 6;
+    const width = ctx.measureText(text).width;
+    if (width <= 0 || avail <= 0) return;
+    const size = Math.max(LABEL_MIN, Math.min(LABEL_MAX, Math.floor(LABEL_BASE * avail / width)));
+    cell.style.fontSize = size + 'px';
+  });
+}
+
+/* ---------- Slepen zoals in Excel ---------- */
+
+function cellFromEvent(e) {
+  const target = e.target.closest('.cell');
+  if (!target) return null;
+  return { day: Number(target.dataset.day), row: Number(target.dataset.row) };
+}
+
+function updatePreview() {
+  if (!drag) return;
+  const minDay = Math.min(drag.startDay, drag.endDay);
+  const maxDay = Math.max(drag.startDay, drag.endDay);
+  const minRow = Math.min(drag.startRow, drag.endRow);
+  const maxRow = Math.max(drag.startRow, drag.endRow);
+  document.querySelectorAll('#grid .cell').forEach(cell => {
+    const d = Number(cell.dataset.day), r = Number(cell.dataset.row);
+    cell.classList.toggle('preview', d >= minDay && d <= maxDay && r >= minRow && r <= maxRow);
+  });
+}
+
+function commitDrag() {
+  if (!drag) return;
+  const { startDay, endDay, startRow, endRow, erase } = drag;
+  drag = null;
+  const minDay = Math.min(startDay, endDay), maxDay = Math.max(startDay, endDay);
+  const minRow = Math.min(startRow, endRow), maxRow = Math.max(startRow, endRow);
+  updateCurrentPlanning(p => {
+    const cells = { ...p.cells };
+    for (let d = minDay; d <= maxDay; d++) {
+      for (let r = minRow; r <= maxRow; r++) {
+        const h = HOURS[r];
+        if (erase) delete cells[d + '-' + h];
+        else cells[d + '-' + h] = activeActivityId;
+      }
+    }
+    return { ...p, cells };
+  });
+}
+
+function initGridEvents() {
+  const grid = el('grid');
+
+  grid.addEventListener('mousedown', e => {
+    const cell = cellFromEvent(e);
+    if (!cell) return;
+    e.preventDefault();
+    const erase = e.button === 2 || activeActivityId === ERASER;
+    if (!erase && !activeActivityId) {
+      el('activityName').focus();
+      el('activityName').placeholder = 'Kies eerst een activiteit…';
+      return;
+    }
+    drag = { startDay: cell.day, startRow: cell.row, endDay: cell.day, endRow: cell.row, erase };
+    updatePreview();
+  });
+
+  grid.addEventListener('mouseover', e => {
+    if (!drag) return;
+    const cell = cellFromEvent(e);
+    if (!cell) return;
+    drag = { ...drag, endDay: cell.day, endRow: cell.row };
+    updatePreview();
+  });
+
+  grid.addEventListener('contextmenu', e => e.preventDefault());
+  window.addEventListener('mouseup', commitDrag);
+}
+
+/* ---------- Activiteit toevoegen ---------- */
+
+function initActivityForm() {
+  el('activityForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const input = el('activityName');
+    const name = input.value.trim();
+    if (!name) { input.focus(); return; }
+    const planning = currentPlanning();
+    if (planning.activities.some(a => a.name.toLowerCase() === name.toLowerCase())) {
+      toast('Er bestaat al een activiteit met deze naam.');
+      return;
+    }
+    const activity = { id: 'a' + Date.now() + Math.floor(Math.random() * 1e4), name, color: selectedColor };
+    activeActivityId = activity.id;
+    input.value = '';
+    input.placeholder = 'Nieuwe activiteit…';
+    const used = new Set([...planning.activities.map(a => a.color), selectedColor]);
+    selectedColor = PALETTE.find(c => !used.has(c)) || selectedColor;
+    buildPalette();
+    updateCurrentPlanning(p => ({ ...p, activities: [...p.activities, activity] }));
+  });
+
+  el('colorBtn').addEventListener('click', () => {
+    paletteEditActivityId = null;
+    buildPalette();
+    el('palette').classList.toggle('open');
+  });
+
+  document.addEventListener('mousedown', e => {
+    if (!e.target.closest('#palette') && !e.target.closest('#colorBtn') && !e.target.closest('.chip .dot')) {
+      el('palette').classList.remove('open');
+    }
+  });
+}
+
+/* ---------- Zijbalk & plannings ---------- */
+
+function initSidebar() {
+  el('toggleSidebar').addEventListener('click', () =>
+    setState({ ...state, sidebarOpen: !state.sidebarOpen }));
+
+  el('newPlanBtn').addEventListener('click', () => {
+    const planning = createPlanning('Planning ' + (state.plannings.length + 1));
+    activeActivityId = null;
+    setState({ ...state, plannings: [...state.plannings, planning], currentId: planning.id });
+  });
+
+  el('planTitle').addEventListener('dblclick', () => {
+    const titleEl = el('planTitle');
+    if (titleEl.querySelector('input')) return;
+    const planning = currentPlanning();
+    const input = document.createElement('input');
+    input.className = 'title-input';
+    input.value = planning.name;
+    titleEl.textContent = '';
+    titleEl.appendChild(input);
+    input.focus();
+    input.select();
+    const commit = () => {
+      const name = input.value.trim();
+      const plannings = state.plannings.map(p =>
+        p.id === planning.id ? { ...p, name: name || planning.name } : p);
+      setState({ ...state, plannings });
+    };
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') input.blur();
+      if (e.key === 'Escape') { input.value = planning.name; input.blur(); }
+    });
+  });
+}
+
+/* ---------- Export / import ---------- */
+
+function initImportExport() {
+  el('exportBtn').addEventListener('click', async () => {
+    const json = JSON.stringify(state, null, 2);
+
+    // Online (artifact-viewer): download via de viewer; lokaal: gewone browser-download
+    let downloads = null;
+    if (window.claude && typeof window.claude.use === 'function') {
+      downloads = await window.claude.use('downloads').catch(() => null);
+    }
+    if (downloads) {
+      try {
+        await downloads.save({ filename: 'weekplanner-backup.json', data: json });
+      } catch (err) {
+        if (!err || err.code !== 'declined') {
+          console.error('Export mislukt:', err);
+          toast('Exporteren is hier niet gelukt. Probeer het zo nog eens.');
+        }
+      }
+      return;
+    }
+
+    const blob = new Blob([json], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'weekplanner-backup.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  // Importeren in 2 klikken: eerste klik waarschuwt, tweede klik opent de bestandskiezer
+  let importArmed = false;
+  let importTimer = null;
+  const resetImportBtn = () => {
+    importArmed = false;
+    clearTimeout(importTimer);
+    el('importBtn').textContent = 'Importeren';
+    el('importBtn').classList.remove('danger');
+  };
+
+  el('importBtn').addEventListener('click', () => {
+    if (!importArmed) {
+      importArmed = true;
+      el('importBtn').textContent = 'Vervangt alles!';
+      el('importBtn').classList.add('danger');
+      importTimer = setTimeout(resetImportBtn, 4000);
+      return;
+    }
+    resetImportBtn();
+    el('importFile').click();
+  });
+
+  el('importFile').addEventListener('change', e => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(reader.result);
+        if (!Array.isArray(parsed.plannings) || parsed.plannings.length === 0) {
+          throw new Error('Geen geldige weekplanner-backup');
+        }
+        activeActivityId = null;
+        setState({
+          plannings: parsed.plannings,
+          currentId: parsed.plannings.some(p => p.id === parsed.currentId)
+            ? parsed.currentId : parsed.plannings[0].id,
+          sidebarOpen: parsed.sidebarOpen !== false
+        });
+        toast('Backup geïmporteerd.');
+      } catch (err) {
+        console.error('Import mislukt:', err);
+        toast('Dit bestand is geen geldige weekplanner-backup.');
+      }
+    };
+    reader.readAsText(file);
+  });
+}
+
+/* ---------- Bijbeltekst van de dag ---------- */
+/* Vaste lijst (externe sites zijn geblokkeerd in de online viewer); wisselt elke dag. */
+const VERSES = [
+  { r: 'Psalm 118:24', t: 'Dit is de dag die de HEERE gemaakt heeft, laten wij op deze dag ons verheugen en verblijd zijn.' },
+  { r: 'Johannes 3:16', t: 'Want zo lief heeft God de wereld gehad, dat Hij Zijn eniggeboren Zoon gegeven heeft, opdat ieder die in Hem gelooft, niet verloren gaat, maar eeuwig leven heeft.' },
+  { r: 'Spreuken 3:5-6', t: 'Vertrouw op de HEERE met heel je hart, en steun op je eigen inzicht niet. Ken Hem in al je wegen, dan zal Híj je paden rechtmaken.' },
+  { r: 'Filippenzen 4:13', t: 'Alle dingen kan ik aan door Christus, Die mij kracht geeft.' },
+  { r: 'Psalm 23:1', t: 'De HEERE is mijn Herder, mij ontbreekt niets.' },
+  { r: 'Jesaja 41:10', t: 'Wees niet bevreesd, want Ik ben met u; wees niet verschrikt, want Ik ben uw God.' },
+  { r: 'Mattheüs 6:33', t: 'Zoek eerst het Koninkrijk van God en Zijn gerechtigheid, en al deze dingen zullen u erbij gegeven worden.' },
+  { r: 'Jeremia 29:11', t: 'Ik immers, Ik ken de gedachten die Ik over u koester, spreekt de HEERE. Het zijn gedachten van vrede en niet van kwaad, om u toekomst en hoop te geven.' },
+  { r: 'Romeinen 8:28', t: 'Wij weten dat voor hen die God liefhebben, alle dingen meewerken ten goede.' },
+  { r: 'Psalm 46:2', t: 'God is ons een toevlucht en kracht; Hij is in hoge mate een hulp gebleken in benauwdheden.' },
+  { r: 'Jozua 1:9', t: 'Wees sterk en moedig, schrik niet en wees niet ontsteld, want de HEERE, uw God, is met u, overal waar u heen gaat.' },
+  { r: 'Mattheüs 11:28', t: 'Kom naar Mij toe, allen die vermoeid en belast bent, en Ik zal u rust geven.' },
+  { r: 'Psalm 121:1-2', t: 'Ik sla mijn ogen op naar de bergen, vanwaar mijn hulp komen zal. Mijn hulp is van de HEERE, Die hemel en aarde gemaakt heeft.' },
+  { r: '1 Korinthe 13:13', t: 'En nu blijven geloof, hoop en liefde, deze drie, maar de meeste van deze is de liefde.' },
+  { r: 'Galaten 5:22', t: 'De vrucht van de Geest is echter: liefde, blijdschap, vrede, geduld, vriendelijkheid, goedheid, geloof, zachtmoedigheid, zelfbeheersing.' },
+  { r: 'Filippenzen 4:6', t: 'Wees in geen ding bezorgd, maar laat uw verlangens in alles, door bidden en smeken, met dankzegging bekend worden bij God.' },
+  { r: 'Psalm 37:5', t: 'Wentel uw weg op de HEERE en vertrouw op Hem: Híj zal het doen.' },
+  { r: 'Johannes 14:6', t: 'Ik ben de Weg, de Waarheid en het Leven. Niemand komt tot de Vader dan door Mij.' },
+  { r: 'Romeinen 12:12', t: 'Verblijd u in de hoop. Wees geduldig in de verdrukking. Volhard in het gebed.' },
+  { r: 'Psalm 119:105', t: 'Uw woord is een lamp voor mijn voet en een licht op mijn pad.' },
+  { r: 'Jesaja 40:31', t: 'Wie de HEERE verwachten, zullen hun kracht vernieuwen, zij zullen hun vleugels uitslaan als arenden.' },
+  { r: 'Mattheüs 5:16', t: 'Laat uw licht zo schijnen voor de mensen, dat zij uw goede werken zien en uw Vader, Die in de hemelen is, verheerlijken.' },
+  { r: 'Psalm 34:9', t: 'Proef en zie dat de HEERE goed is; welzalig de man die tot Hem de toevlucht neemt.' },
+  { r: '1 Petrus 5:7', t: 'Werp al uw zorgen op Hem, want Hij zorgt voor u.' },
+  { r: 'Johannes 8:12', t: 'Ik ben het Licht der wereld; wie Mij volgt, zal beslist niet in de duisternis wandelen, maar zal het licht van het leven hebben.' },
+  { r: 'Klaagliederen 3:22-23', t: 'Het is de goedertierenheid van de HEERE dat wij niet omgekomen zijn, dat Zijn barmhartigheid niet opgehouden is! Nieuw zijn ze, elke morgen.' },
+  { r: 'Spreuken 16:3', t: 'Vertrouw uw werken aan de HEERE toe, en uw plannen zullen bevestigd worden.' },
+  { r: 'Psalm 27:1', t: 'De HEERE is mijn licht en mijn heil, voor wie zou ik vrezen?' },
+  { r: '2 Korinthe 5:17', t: 'Daarom, als iemand in Christus is, is hij een nieuwe schepping: het oude is voorbijgegaan, zie, alles is nieuw geworden.' },
+  { r: 'Mattheüs 7:7', t: 'Bid, en u zal gegeven worden; zoek, en u zult vinden; klop, en er zal voor u opengedaan worden.' },
+  { r: 'Psalm 139:14', t: 'Ik loof U omdat ik ontzagwekkend wonderlijk gemaakt ben; wonderlijk zijn Uw werken, mijn ziel weet dat zeer goed.' },
+  { r: 'Romeinen 15:13', t: 'De God nu van de hoop moge u vervullen met alle blijdschap en vrede in het geloven.' },
+  { r: 'Johannes 16:33', t: 'In de wereld zult u verdrukking hebben, maar heb goede moed: Ik heb de wereld overwonnen.' },
+  { r: 'Psalm 62:2', t: 'Zeker, mijn ziel is stil voor God; van Hem is mijn heil.' },
+  { r: 'Kolossenzen 3:23', t: 'En alles wat u doet, doe dat van harte, als voor de Heere en niet voor mensen.' },
+  { r: 'Hebreeën 13:8', t: 'Jezus Christus is gisteren en heden Dezelfde en tot in eeuwigheid.' },
+  { r: 'Psalm 90:12', t: 'Leer ons zó onze dagen tellen, dat wij een wijs hart verkrijgen.' },
+  { r: 'Micha 6:8', t: 'Hij heeft u, mens, bekendgemaakt wat goed is. En wat vraagt de HEERE van u anders dan recht te doen, goedertierenheid lief te hebben en ootmoedig te wandelen met uw God.' },
+  { r: 'Johannes 15:5', t: 'Ik ben de Wijnstok, u de ranken; wie in Mij blijft, en Ik in hem, die draagt veel vrucht.' },
+  { r: 'Efeze 2:8', t: 'Want uit genade bent u zalig geworden, door het geloof, en dat niet uit u, het is de gave van God.' },
+  { r: 'Psalm 55:23', t: 'Werp uw zorg op de HEERE, en Híj zal u onderhouden.' },
+  { r: 'Spreuken 17:22', t: 'Een blij hart bevordert de genezing, maar een neerslachtige geest doet de beenderen verdorren.' },
+  { r: 'Mattheüs 22:37-39', t: 'U zult de Heere, uw God, liefhebben met heel uw hart, met heel uw ziel en met heel uw verstand... en uw naaste als uzelf.' },
+  { r: 'Romeinen 8:38-39', t: 'Ik ben ervan overtuigd dat niets ons zal kunnen scheiden van de liefde van God in Christus Jezus, onze Heere.' },
+  { r: 'Psalm 103:2', t: 'Loof de HEERE, mijn ziel, en vergeet niet een van Zijn weldaden.' },
+  { r: 'Jakobus 1:5', t: 'Als iemand van u in wijsheid tekortschiet, laat hij die dan vragen aan God, Die aan ieder overvloedig geeft, en ze zal hem gegeven worden.' },
+  { r: 'Zefanja 3:17', t: 'De HEERE, uw God, is in uw midden, een Held, Die verlossen zal. Hij zal Zich over u verheugen met blijdschap.' },
+  { r: 'Johannes 1:5', t: 'Het licht schijnt in de duisternis, en de duisternis heeft het niet begrepen.' },
+  { r: 'Psalm 42:12', t: 'Wat buigt u zich neer, mijn ziel, en wat bent u onrustig in mij? Hoop op God, want ik zal Hem weer loven.' },
+  { r: '1 Thessalonicenzen 5:16-18', t: 'Verblijd u altijd. Bid zonder ophouden. Dank God in alles.' },
+  { r: 'Spreuken 18:10', t: 'De Naam van de HEERE is een sterke toren; een rechtvaardige snelt daarheen en wordt in een veilige vesting gezet.' },
+  { r: 'Jesaja 26:3', t: 'Het is Uw vaste voornemen: U zult volkomen vrede bewaren, want men heeft op U vertrouwd.' },
+  { r: 'Mattheüs 6:34', t: 'Wees dan niet bezorgd over de dag van morgen, want de dag van morgen zal voor zichzelf zorgen.' },
+  { r: 'Psalm 16:8', t: 'Ik stel mij de HEERE voortdurend voor ogen; omdat Hij aan mijn rechterhand is, wankel ik niet.' },
+  { r: '2 Timotheüs 1:7', t: 'Want God heeft ons niet gegeven een geest van vreesachtigheid, maar van kracht en liefde en bezonnenheid.' },
+  { r: 'Numeri 6:24-26', t: 'De HEERE zegene u en behoede u! De HEERE doe Zijn aangezicht over u lichten en zij u genadig!' },
+  { r: 'Psalm 143:8', t: 'Doe mij in de morgen Uw goedertierenheid horen, want ik vertrouw op U; maak mij de weg bekend die ik te gaan heb.' },
+  { r: 'Johannes 13:34', t: 'Een nieuw gebod geef Ik u, namelijk dat u elkaar liefhebt; zoals Ik u liefgehad heb, moet u ook elkaar liefhebben.' },
+  { r: 'Romeinen 12:2', t: 'Word niet aan deze wereld gelijkvormig, maar word veranderd door de vernieuwing van uw gezindheid.' },
+  { r: 'Openbaring 21:5', t: 'Zie, Ik maak alle dingen nieuw.' }
+];
+
+function renderVerse() {
+  const now = new Date();
+  const startOfYear = new Date(now.getFullYear(), 0, 0);
+  const dayOfYear = Math.floor((now - startOfYear) / 86400000);
+  const verse = VERSES[dayOfYear % VERSES.length];
+  el('verseText').textContent = '“' + verse.t + '”';
+  el('verseRef').textContent = verse.r + ' · tekst van de dag';
+}
+
+/* ================= Start ================= */
+window.addEventListener('resize', () => requestAnimationFrame(fitCellLabels));
+el('sidebar').addEventListener('transitionend', fitCellLabels);
+buildPalette();
+initGridEvents();
+initActivityForm();
+initSidebar();
+initImportExport();
+renderVerse();
+render();
+</script>
+</body>
+</html>
