@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Samuel's Super planner</title>
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Super planner">
@@ -327,9 +328,49 @@
     font-size: 14px;
   }
 
+  /* ---------- Onder het rooster: tekst links, notities rechts ---------- */
+  #belowGrid {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 26px;
+    margin: 16px 2px 0;
+  }
+
+  #notesWrap {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 330px;
+    flex: 0 0 auto;
+  }
+  #notesLabel {
+    font-size: 10.5px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: #b5b5b5;
+  }
+  #notes {
+    width: 100%;
+    min-height: 86px;
+    resize: vertical;
+    padding: 10px 12px;
+    border: 1px solid var(--border-soft);
+    border-radius: 10px;
+    background: var(--panel);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1.55;
+    outline: none;
+  }
+  #notes:focus { border-color: var(--border); }
+  #notes::placeholder { color: #c8c8c8; }
+
   /* ---------- Bijbeltekst van de dag ---------- */
   #verse {
-    margin: 16px 2px 0;
+    flex: 1 1 auto;
+    min-width: 0;
     max-width: 540px;
     padding-left: 14px;
     border-left: 2px solid var(--border);
@@ -443,7 +484,14 @@
     .hour-label { font-size: 10px; padding: 3px 4px 0 0; }
     .cell { height: 36px; line-height: 36px; padding: 0 2px; }
 
-    #verse { margin: 14px 14px 0; padding-left: 10px; max-width: none; }
+    #belowGrid {
+      flex-direction: column;
+      gap: 16px;
+      margin: 14px 14px 0;
+    }
+    #notesWrap { width: 100%; order: -1; }   /* notities eerst op een telefoon */
+    #notes { font-size: 16px; }              /* voorkomt inzoomen bij tikken */
+    #verse { padding-left: 10px; max-width: none; }
     #verseText { font-size: 12px; }
     #toast { bottom: calc(20px + env(safe-area-inset-bottom)); }
   }
@@ -486,9 +534,15 @@
 
   <div id="gridWrap">
   <div id="grid"></div>
-  <div id="verse">
-    <div id="verseText"></div>
-    <a id="verseRef" href="https://www.bible.com/nl/verse-of-the-day" target="_blank" rel="noopener" title="Bekijk de officiële tekst van de dag op bible.com"></a>
+  <div id="belowGrid">
+    <div id="verse">
+      <div id="verseText"></div>
+      <a id="verseRef" href="https://www.bible.com/nl/verse-of-the-day" target="_blank" rel="noopener" title="Bekijk de officiële tekst van de dag op bible.com"></a>
+    </div>
+    <div id="notesWrap">
+      <label id="notesLabel" for="notes">Notities</label>
+      <textarea id="notes" rows="4" placeholder="Notities bij deze planning…"></textarea>
+    </div>
   </div>
 </div>
 </div>
@@ -518,7 +572,8 @@ function createPlanning(name) {
     id: 'p' + Date.now() + Math.floor(Math.random() * 1e4),
     name,
     activities: [],   // [{id, name, color}]
-    cells: {}         // {"day-hour": activityId}
+    cells: {},        // {"day-hour": activityId}
+    notes: ''
   };
 }
 
@@ -631,6 +686,7 @@ function render() {
   renderSidebar();
   renderLegend();
   renderGrid();
+  renderNotes();
   el('sidebar').classList.toggle('closed', !state.sidebarOpen);
   el('backdrop').classList.toggle('show', state.sidebarOpen && isPhone());
   el('planTitle').textContent = currentPlanning().name;
@@ -1224,6 +1280,46 @@ function initImportExport() {
   });
 }
 
+/* ---------- Notities per planning ---------- */
+
+function renderNotes() {
+  const box = el('notes');
+  const value = currentPlanning().notes || '';
+  // niet overschrijven terwijl er getypt wordt
+  if (document.activeElement !== box && box.value !== value) box.value = value;
+}
+
+function saveNotes(planningId, value) {
+  const planning = state.plannings.find(p => p.id === planningId);
+  if (!planning || (planning.notes || '') === value) return;
+  const plannings = state.plannings.map(p =>
+    p.id === planningId ? { ...p, notes: value } : p);
+  setState({ ...state, plannings });
+}
+
+function initNotes() {
+  const box = el('notes');
+  let timer = null;
+  let pending = null;   // {id, value} — de planning waarin getypt werd
+
+  const flush = () => {
+    clearTimeout(timer);
+    timer = null;
+    if (!pending) return;
+    const { id, value } = pending;
+    pending = null;
+    saveNotes(id, value);
+  };
+
+  box.addEventListener('input', () => {
+    pending = { id: currentPlanning().id, value: box.value };
+    clearTimeout(timer);
+    timer = setTimeout(flush, 400);
+  });
+  box.addEventListener('blur', flush);
+  window.addEventListener('beforeunload', flush);
+}
+
 /* ---------- Bijbeltekst van de dag ---------- */
 /* Vaste lijst (externe sites zijn geblokkeerd in de online viewer); wisselt elke dag. */
 const VERSES = [
@@ -1311,6 +1407,7 @@ initGridEvents();
 initActivityForm();
 initSidebar();
 initImportExport();
+initNotes();
 renderVerse();
 render();
 </script>
