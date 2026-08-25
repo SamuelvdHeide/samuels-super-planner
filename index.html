@@ -2,9 +2,14 @@
 <html lang="nl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Samuel's Super planner</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Super planner">
+<meta name="theme-color" content="#fafafa">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📅</text></svg>">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
   :root {
     --bg: #fafafa;
@@ -18,14 +23,19 @@
     --sel: rgba(58, 58, 58, .18);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { height: 100%; }
+  html, body { height: 100%; height: 100dvh; }
+  html { -webkit-text-size-adjust: 100%; }
   body {
     font-family: -apple-system, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
     background: var(--bg);
     color: var(--text);
     display: flex;
     overflow: hidden;
+    overscroll-behavior: none;
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
   }
+  button, input { font-family: inherit; touch-action: manipulation; }
 
   /* ---------- Zijbalk ---------- */
   #sidebar {
@@ -340,6 +350,103 @@
     text-decoration: none;
   }
   #verseRef:hover { color: var(--text); text-decoration: underline; }
+
+  #touchHint {
+    display: none;
+    width: 100%;
+    font-size: 11.5px;
+    color: #b5b5b5;
+    line-height: 1.4;
+  }
+  @media (hover: none) { #touchHint { display: block; } }
+
+  /* ---------- Touchbediening (iPhone/iPad) ---------- */
+  .cell { -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+  #grid.painting { touch-action: none; }
+  .cell.painting-start::before {
+    content: "";
+    position: absolute; inset: 2px;
+    border: 2px solid var(--text);
+    border-radius: 4px;
+    pointer-events: none;
+  }
+  /* Zonder muis is er geen hover: verwijderknoppen altijd tonen */
+  @media (hover: none) {
+    .plan-item .del-btn { visibility: visible; }
+    .cell:not(.filled):hover { background: none; }
+  }
+
+  #backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .28);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .22s ease;
+    z-index: 40;
+  }
+
+  .day-head .short, .hour-label .short { display: none; }
+
+  /* ---------- Telefoon ---------- */
+  @media (max-width: 700px) {
+    #sidebar {
+      position: fixed;
+      top: 0; bottom: 0; left: 0;
+      z-index: 50;
+      width: 78vw;
+      min-width: 0;
+      max-width: 300px;
+      box-shadow: 0 0 40px rgba(0, 0, 0, .18);
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    #sidebar.closed { margin-left: 0; transform: translateX(-100%); }
+    #sidebar { transition: transform .22s ease; }
+    #backdrop.show { opacity: 1; pointer-events: auto; }
+
+    #topbar {
+      padding: 10px 14px 8px;
+      padding-top: calc(10px + env(safe-area-inset-top));
+    }
+    #toggleSidebar { width: 42px; height: 42px; font-size: 18px; }
+    #planTitle { font-size: 20px; }
+
+    #legend { padding: 0 14px 10px; gap: 7px; }
+    #activityName { width: 100%; flex: 1; font-size: 16px; padding: 10px; }
+    #legend form { flex: 1 1 100%; }
+    #colorBtn, #addActivity { height: 42px; min-width: 42px; font-size: 14px; }
+    #palette { grid-template-columns: repeat(6, 1fr); width: min(88vw, 320px); }
+    #customColor { grid-column: span 6; }
+    .swatch { width: 100%; aspect-ratio: 1; height: auto; }
+    .chip { padding: 8px 10px; font-size: 13px; }
+    .chip .x { padding: 4px 2px 4px 6px; font-size: 15px; }
+
+    #gridWrap { padding: 0 0 14px; }
+    #grid {
+      min-width: 0;
+      grid-template-columns: 34px repeat(7, minmax(0, 1fr));
+      border-radius: 0;
+      border-left: none;
+      border-right: none;
+      overflow: visible;        /* nodig zodat de dagbalk kan blijven plakken */
+    }
+    /* Dagnamen blijven in beeld tijdens het scrollen */
+    .day-head, .corner { position: sticky; top: 0; z-index: 5; }
+    .day-head {
+      padding: 9px 1px;
+      font-size: 10px;
+      letter-spacing: .06em;
+    }
+    .day-head .full, .hour-label .full { display: none; }
+    .day-head .short, .hour-label .short { display: inline; }
+    .hour-label { font-size: 10px; padding: 3px 4px 0 0; }
+    .cell { height: 36px; line-height: 36px; padding: 0 2px; }
+
+    #verse { margin: 14px 14px 0; padding-left: 10px; max-width: none; }
+    #verseText { font-size: 12px; }
+    #toast { bottom: calc(20px + env(safe-area-inset-bottom)); }
+  }
 </style>
 </head>
 <body>
@@ -358,6 +465,8 @@
   </div>
 </aside>
 
+<div id="backdrop"></div>
+
 <div id="main">
   <div id="topbar">
     <button id="toggleSidebar" title="Zijbalk tonen/verbergen">☰</button>
@@ -372,6 +481,7 @@
       <div id="palette"></div>
     </form>
     <div id="chips" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+    <div id="touchHint">Tik = 1 uur · vasthouden en slepen = meerdere uren</div>
   </div>
 
   <div id="gridWrap">
@@ -493,6 +603,10 @@ function disarmDelete() {
 
 /* ================= Helpers ================= */
 
+function isPhone() {
+  return window.matchMedia('(max-width: 700px)').matches;
+}
+
 function textColorFor(hex) {
   const n = parseInt(hex.slice(1), 16);
   const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
@@ -518,6 +632,7 @@ function render() {
   renderLegend();
   renderGrid();
   el('sidebar').classList.toggle('closed', !state.sidebarOpen);
+  el('backdrop').classList.toggle('show', state.sidebarOpen && isPhone());
   el('planTitle').textContent = currentPlanning().name;
   el('colorBtn').style.background = selectedColor;
 }
@@ -553,7 +668,7 @@ function renderSidebar() {
     item.addEventListener('click', () => {
       if (p.id !== state.currentId) {
         activeActivityId = null;
-        setState({ ...state, currentId: p.id });
+        setState({ ...state, currentId: p.id, sidebarOpen: isPhone() ? false : state.sidebarOpen });
       }
     });
     item.addEventListener('dblclick', () => startRename(item, name, p));
@@ -726,14 +841,27 @@ function renderGrid() {
   DAYS.forEach(day => {
     const head = document.createElement('div');
     head.className = 'day-head';
-    head.textContent = day;
+    const full = document.createElement('span');
+    full.className = 'full';
+    full.textContent = day;
+    const short = document.createElement('span');
+    short.className = 'short';
+    short.textContent = day.slice(0, 2);
+    head.append(full, short);
     grid.appendChild(head);
   });
 
   HOURS.forEach((hour, row) => {
     const label = document.createElement('div');
     label.className = 'hour-label';
-    label.textContent = String(hour).padStart(2, '0') + ':00';
+    const hh = String(hour).padStart(2, '0');
+    const labelFull = document.createElement('span');
+    labelFull.className = 'full';
+    labelFull.textContent = hh + ':00';
+    const labelShort = document.createElement('span');
+    labelShort.className = 'short';
+    labelShort.textContent = hh;
+    label.append(labelFull, labelShort);
     grid.appendChild(label);
 
     for (let day = 0; day < DAYS.length; day++) {
@@ -818,21 +946,34 @@ function commitDrag() {
   });
 }
 
+function cancelDrag() {
+  drag = null;
+  document.querySelectorAll('#grid .cell.preview').forEach(c => c.classList.remove('preview'));
+}
+
+/* Start het inkleuren; false als er nog geen activiteit gekozen is */
+function beginPaint(cell, erase) {
+  if (!erase && !activeActivityId) {
+    toast('Kies eerst een activiteit hierboven, of tik op Gum.');
+    if (currentPlanning().activities.length === 0) el('activityName').focus();
+    return false;
+  }
+  drag = { startDay: cell.day, startRow: cell.row, endDay: cell.day, endRow: cell.row, erase };
+  updatePreview();
+  return true;
+}
+
 function initGridEvents() {
   const grid = el('grid');
+  let touchGuardUntil = 0;   // negeert de nep-muisklik die iOS na een aanraking stuurt
 
+  /* ---------- Muis ---------- */
   grid.addEventListener('mousedown', e => {
+    if (Date.now() < touchGuardUntil) return;
     const cell = cellFromEvent(e);
     if (!cell) return;
     e.preventDefault();
-    const erase = e.button === 2 || activeActivityId === ERASER;
-    if (!erase && !activeActivityId) {
-      el('activityName').focus();
-      el('activityName').placeholder = 'Kies eerst een activiteit…';
-      return;
-    }
-    drag = { startDay: cell.day, startRow: cell.row, endDay: cell.day, endRow: cell.row, erase };
-    updatePreview();
+    beginPaint(cell, e.button === 2 || activeActivityId === ERASER);
   });
 
   grid.addEventListener('mouseover', e => {
@@ -845,6 +986,80 @@ function initGridEvents() {
 
   grid.addEventListener('contextmenu', e => e.preventDefault());
   window.addEventListener('mouseup', commitDrag);
+
+  /* ---------- Aanraken: tik = één vakje, vasthouden + slepen = meerdere ---------- */
+  const LONG_PRESS_MS = 260;
+  const MOVE_TOLERANCE = 12;
+  let touch = null;
+
+  const cellFromPoint = (x, y) => {
+    const target = document.elementFromPoint(x, y);
+    const node = target && target.closest ? target.closest('.cell') : null;
+    if (!node || !grid.contains(node)) return null;
+    return { day: Number(node.dataset.day), row: Number(node.dataset.row), node };
+  };
+
+  const endTouch = () => {
+    if (touch && touch.timer) clearTimeout(touch.timer);
+    touch = null;
+    touchGuardUntil = Date.now() + 900;
+    grid.classList.remove('painting');
+    grid.querySelectorAll('.cell.painting-start')
+      .forEach(c => c.classList.remove('painting-start'));
+  };
+
+  grid.addEventListener('touchstart', e => {
+    if (e.touches.length !== 1) { cancelDrag(); endTouch(); return; }
+    const point = e.touches[0];
+    const cell = cellFromPoint(point.clientX, point.clientY);
+    if (!cell) return;
+    touchGuardUntil = Date.now() + 900;
+    const current = { x: point.clientX, y: point.clientY, cell, moved: false, painting: false, timer: null };
+    touch = current;
+    current.timer = setTimeout(() => {
+      if (touch !== current || current.moved) return;
+      if (!beginPaint(cell, activeActivityId === ERASER)) { endTouch(); return; }
+      current.painting = true;
+      grid.classList.add('painting');
+      cell.node.classList.add('painting-start');
+      if (navigator.vibrate) navigator.vibrate(8);
+    }, LONG_PRESS_MS);
+  }, { passive: true });
+
+  grid.addEventListener('touchmove', e => {
+    if (!touch) return;
+    const point = e.touches[0];
+    if (touch.painting) {
+      e.preventDefault();          // niet scrollen tijdens het inkleuren
+      const cell = cellFromPoint(point.clientX, point.clientY);
+      if (cell && drag) {
+        drag = { ...drag, endDay: cell.day, endRow: cell.row };
+        updatePreview();
+      }
+      return;
+    }
+    if (Math.abs(point.clientX - touch.x) > MOVE_TOLERANCE ||
+        Math.abs(point.clientY - touch.y) > MOVE_TOLERANCE) {
+      touch.moved = true;          // de gebruiker scrolt
+      endTouch();
+    }
+  }, { passive: false });
+
+  grid.addEventListener('touchend', () => {
+    if (!touch) return;
+    const finished = touch;
+    endTouch();
+    if (finished.painting) {
+      commitDrag();
+    } else if (!finished.moved && beginPaint(finished.cell, activeActivityId === ERASER)) {
+      commitDrag();
+    }
+  });
+
+  grid.addEventListener('touchcancel', () => {
+    cancelDrag();
+    endTouch();
+  });
 }
 
 /* ---------- Activiteit toevoegen ---------- */
@@ -889,10 +1104,18 @@ function initSidebar() {
   el('toggleSidebar').addEventListener('click', () =>
     setState({ ...state, sidebarOpen: !state.sidebarOpen }));
 
+  el('backdrop').addEventListener('click', () =>
+    setState({ ...state, sidebarOpen: false }));
+
   el('newPlanBtn').addEventListener('click', () => {
     const planning = createPlanning('Planning ' + (state.plannings.length + 1));
     activeActivityId = null;
-    setState({ ...state, plannings: [...state.plannings, planning], currentId: planning.id });
+    setState({
+      ...state,
+      plannings: [...state.plannings, planning],
+      currentId: planning.id,
+      sidebarOpen: isPhone() ? false : state.sidebarOpen
+    });
   });
 
   el('planTitle').addEventListener('dblclick', () => {
@@ -1076,6 +1299,11 @@ function renderVerse() {
 }
 
 /* ================= Start ================= */
+// Op een telefoon begint de zijbalk dicht, zodat het rooster het scherm vult
+if (isPhone() && state.sidebarOpen) state = { ...state, sidebarOpen: false };
+if (window.matchMedia('(hover: none)').matches) {
+  document.querySelector('#sidebarFooter .hint').textContent = 'Tik 2× op een naam om te hernoemen';
+}
 window.addEventListener('resize', () => requestAnimationFrame(fitCellLabels));
 el('sidebar').addEventListener('transitionend', fitCellLabels);
 buildPalette();
