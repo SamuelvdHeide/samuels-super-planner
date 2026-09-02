@@ -272,13 +272,14 @@
   }
   #grid {
     display: grid;
-    grid-template-columns: 56px repeat(7, minmax(90px, 1fr));
+    /* uren | ma t/m zo | tussenruimte | extra */
+    grid-template-columns: 56px repeat(7, minmax(90px, 1fr)) 16px minmax(90px, 1fr);
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 12px;
     overflow: hidden;
     user-select: none;
-    min-width: 760px;
+    min-width: 880px;
   }
   .day-head {
     padding: 12px 4px;
@@ -292,6 +293,13 @@
     border-left: 1px solid var(--border-soft);
   }
   .corner { background: #f6f6f6; border-bottom: 1px solid var(--border); }
+  /* Tussenruimte tussen zondag en de extra kolom */
+  .gap, .gap-head {
+    background: var(--bg);
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+  }
+  .day-head.extra { color: var(--text-soft); }
   .hour-label {
     font-size: 11px;
     color: var(--text-soft);
@@ -466,14 +474,14 @@
     #gridWrap { padding: 0 0 14px; }
     #grid {
       min-width: 0;
-      grid-template-columns: 34px repeat(7, minmax(0, 1fr));
+      grid-template-columns: 34px repeat(7, minmax(0, 1fr)) 6px minmax(0, 1fr);
       border-radius: 0;
       border-left: none;
       border-right: none;
       overflow: visible;        /* nodig zodat de dagbalk kan blijven plakken */
     }
     /* Dagnamen blijven in beeld tijdens het scrollen */
-    .day-head, .corner { position: sticky; top: 0; z-index: 5; }
+    .day-head, .corner, .gap-head { position: sticky; top: 0; z-index: 5; }
     .day-head {
       padding: 9px 1px;
       font-size: 10px;
@@ -555,8 +563,14 @@
 /* ================= Constanten ================= */
 const STORAGE_KEY = 'weekplanner.v1';
 const DAYS = ['Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrijdag', 'Zaterdag', 'Zondag'];
-// Uren in weergavevolgorde: 06:00 t/m 23:00, daarna de nacht (00:00 en 01:00)
-const HOURS = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 0, 1];
+// Extra kolom naast de week: uren die je ook nog zou willen doen
+const EXTRA_DAY = DAYS.length;
+const COLUMNS = [
+  ...DAYS.map(day => ({ full: day, short: day.slice(0, 2), extra: false })),
+  { full: 'Extra', short: 'Ex', extra: true, title: 'Uren die je ook nog zou willen doen' }
+];
+// Uren in weergavevolgorde: 06:00 t/m 23:00, daarna de nacht (00:00 t/m 05:00) — 24 uur per dag
+const HOURS = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 0, 1, 2, 3, 4, 5];
 const ERASER = '__eraser__';
 const PALETTE = [
   '#ef4444', '#f97316', '#f59e0b', '#eab308', '#facc15', '#fde047', '#bef264', '#84cc16', '#22c55e',
@@ -669,8 +683,27 @@ function textColorFor(hex) {
   return lum > 0.62 ? '#2b2b2b' : '#ffffff';
 }
 
+function isExtraKey(key) {
+  return key.startsWith(EXTRA_DAY + '-');
+}
+
+/* Ingeplande uren in de week (ma t/m zo), zonder de extra kolom */
 function hoursFor(planning, activityId) {
-  return Object.values(planning.cells).filter(id => id === activityId).length;
+  return Object.entries(planning.cells)
+    .filter(([key, id]) => id === activityId && !isExtraKey(key)).length;
+}
+
+/* Uren in de extra kolom */
+function extraHoursFor(planning, activityId) {
+  return Object.entries(planning.cells)
+    .filter(([key, id]) => id === activityId && isExtraKey(key)).length;
+}
+
+function hoursLabel(week, extra) {
+  const parts = [];
+  if (week > 0) parts.push(week + 'u');
+  if (extra > 0) parts.push('+' + extra + 'u extra');
+  return parts.join(' ');
 }
 
 function nextFreeColor(planning) {
@@ -797,8 +830,7 @@ function renderLegend() {
 
     const hours = document.createElement('span');
     hours.className = 'hours';
-    const n = hoursFor(planning, activity.id);
-    hours.textContent = n > 0 ? n + 'u' : '';
+    hours.textContent = hoursLabel(hoursFor(planning, activity.id), extraHoursFor(planning, activity.id));
     chip.appendChild(hours);
 
     const x = document.createElement('button');
@@ -894,15 +926,17 @@ function renderGrid() {
   const corner = document.createElement('div');
   corner.className = 'corner';
   grid.appendChild(corner);
-  DAYS.forEach(day => {
+  COLUMNS.forEach(column => {
+    if (column.extra) grid.appendChild(gapElement('gap-head'));
     const head = document.createElement('div');
-    head.className = 'day-head';
+    head.className = 'day-head' + (column.extra ? ' extra' : '');
+    if (column.title) head.title = column.title;
     const full = document.createElement('span');
     full.className = 'full';
-    full.textContent = day;
+    full.textContent = column.full;
     const short = document.createElement('span');
     short.className = 'short';
-    short.textContent = day.slice(0, 2);
+    short.textContent = column.short;
     head.append(full, short);
     grid.appendChild(head);
   });
@@ -920,7 +954,8 @@ function renderGrid() {
     label.append(labelFull, labelShort);
     grid.appendChild(label);
 
-    for (let day = 0; day < DAYS.length; day++) {
+    for (let day = 0; day < COLUMNS.length; day++) {
+      if (day === EXTRA_DAY) grid.appendChild(gapElement('gap'));
       const cell = document.createElement('div');
       cell.className = 'cell';
       cell.dataset.day = day;
@@ -942,6 +977,14 @@ function renderGrid() {
     }
   });
   fitCellLabels();
+}
+
+/* Lege tussenruimte tussen zondag en de extra kolom (geen cel, dus niet inkleurbaar) */
+function gapElement(className) {
+  const gap = document.createElement('div');
+  gap.className = className;
+  gap.setAttribute('aria-hidden', 'true');
+  return gap;
 }
 
 /* Schaal de tekst zodat die het blokje vult, altijd op één regel (zoals in Excel) */
